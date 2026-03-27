@@ -77,6 +77,12 @@ export default function POSPage() {
     }
   };
 
+  // Format portion prices for display (e.g. "₹250/₹400")
+  const formatPortionPrices = (item) => {
+    if (!item.portions || item.portions.length === 0) return "—";
+    return item.portions.map(p => `₹${p.price}`).join("/");
+  };
+
   // Cart Math
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const taxDetails = cart.reduce((taxes, item) => {
@@ -125,17 +131,17 @@ export default function POSPage() {
 
   return (
     <AuthGuard>
-      <div className="container" style={{ padding: '1rem', maxWidth: '1400px' }}>
+      <div style={{ padding: '0.75rem', maxWidth: '1400px', margin: '0 auto' }}>
         <div className="pos-grid">
 
           {/* Main POS Menu Section */}
-          <div className="flex-col gap-4">
-            <div className="flex gap-2" style={{ overflowX: 'auto', paddingBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            <div className="flex gap-2" style={{ overflowX: 'auto', paddingBottom: '0.5rem', flexShrink: 0 }}>
               {categories.map(cat => (
                 <button
                   key={cat}
                   className={`btn ${activeCategory === cat ? 'btn-primary' : 'btn-outline'}`}
-                  style={{ borderRadius: '99px', whiteSpace: 'nowrap' }}
+                  style={{ borderRadius: '99px', whiteSpace: 'nowrap', fontSize: '0.875rem', padding: '0.4rem 0.75rem' }}
                   onClick={() => setActiveCategory(cat)}
                 >
                   {cat}
@@ -143,105 +149,109 @@ export default function POSPage() {
               ))}
             </div>
 
-            <div className="item-grid mt-4">
-              {filteredItems.map(item => (
-                <div
-                  key={item.id}
-                  className="card card-interactive flex flex-col justify-between"
-                  style={{ padding: '1rem', userSelect: 'none' }}
-                  onClick={() => handleItemClick(item)}
-                >
-                  <div>
-                    <h3 style={{ fontSize: '1.125rem', marginBottom: '0.25rem' }}>{item.name}</h3>
-                    <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{item.category}</span>
+            <div className="menu-scroll" style={{ marginTop: '0.5rem' }}>
+              <div className="item-grid">
+                {filteredItems.map(item => (
+                  <div
+                    key={item.id}
+                    className="card card-interactive"
+                    style={{ padding: '0.75rem', userSelect: 'none', cursor: 'pointer' }}
+                    onClick={() => handleItemClick(item)}
+                  >
+                    <h3 style={{ fontSize: '0.95rem', marginBottom: '0.15rem', lineHeight: 1.3 }}>{item.name}</h3>
+                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>{item.category}</span>
+                    <div style={{ marginTop: '0.5rem', fontWeight: 700, fontSize: '1rem', color: 'var(--primary)' }}>
+                      {item.hasPortions ? formatPortionPrices(item) : `₹${item.price}`}
+                    </div>
                   </div>
-                  <div className="mt-4 font-bold text-primary" style={{ fontSize: '1.25rem' }}>
-                    {item.hasPortions ? "Multiple Portions" : `₹${item.price.toFixed(2)}`}
-                  </div>
-                </div>
-              ))}
-              {filteredItems.length === 0 && <p>No items found.</p>}
+                ))}
+                {filteredItems.length === 0 && <p>No items found.</p>}
+              </div>
             </div>
           </div>
 
           {/* Cart Section */}
-          <div className="card flex flex-col" style={{ padding: '0', height: '100%', overflow: 'hidden' }}>
-            <div className="bg-slate-50 border-b border-gray-200" style={{ padding: '1rem', borderBottomColor: 'var(--border)' }}>
-              <div className="flex justify-between items-center">
-                <h2 style={{ margin: 0 }}>Current Bill</h2>
-                <button onClick={clearCart} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', color: 'var(--danger)' }}>Clear</button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto" style={{ padding: '1rem' }}>
-              {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-secondary">
-                  <p>Cart is empty.</p>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', minHeight: 0 }}>
+            <div className="cart-container">
+              {/* Cart Header */}
+              <div className="cart-header" style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+                <div className="flex justify-between items-center">
+                  <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Current Bill</h2>
+                  <button onClick={clearCart} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', color: 'var(--danger)', fontSize: '0.8rem' }}>Clear</button>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {cart.map(item => (
-                    <div key={item.cartId} className="flex justify-between items-center bg-slate-50 rounded" style={{ padding: '0.75rem' }}>
-                      <div className="flex-1">
-                        <div style={{ fontWeight: 600 }}>{item.name}</div>
-                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>₹{item.price} x {item.qty}</div>
+              </div>
+
+              {/* Scrollable Cart Items */}
+              <div className="cart-items">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-secondary" style={{ padding: '2rem 0' }}>
+                    <p>Cart is empty. Tap items to add.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {cart.map(item => (
+                      <div key={item.cartId} className="flex justify-between items-center" style={{ padding: '0.5rem 0.6rem', background: '#f8fafc', borderRadius: 'var(--radius-sm)' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>₹{item.price} × {item.qty}</div>
+                        </div>
+                        <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+                          <button onClick={() => updateQty(item.cartId, -1)} className="btn btn-outline" style={{ padding: '0.15rem', borderRadius: '50%', width: '26px', height: '26px' }}><Minus size={14} /></button>
+                          <span style={{ width: '1.5rem', textAlign: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>{item.qty}</span>
+                          <button onClick={() => updateQty(item.cartId, 1)} className="btn btn-outline" style={{ padding: '0.15rem', borderRadius: '50%', width: '26px', height: '26px' }}><Plus size={14} /></button>
+                        </div>
+                        <div style={{ width: '3.5rem', textAlign: 'right', fontWeight: 'bold', fontSize: '0.875rem', flexShrink: 0 }}>₹{item.price * item.qty}</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => updateQty(item.cartId, -1)} className="btn btn-outline" style={{ padding: '0.25rem', borderRadius: '50%' }}><Minus size={16} /></button>
-                        <span style={{ width: '2rem', textAlign: 'center', fontWeight: 'bold' }}>{item.qty}</span>
-                        <button onClick={() => updateQty(item.cartId, 1)} className="btn btn-outline" style={{ padding: '0.25rem', borderRadius: '50%' }}><Plus size={16} /></button>
-                      </div>
-                      <div style={{ width: '4rem', textAlign: 'right', fontWeight: 'bold' }}>₹{item.price * item.qty}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Modifiers & Totals */}
-            <div className="bg-slate-50 border-t border-gray-200" style={{ padding: '1rem', borderTopColor: 'var(--border)' }}>
-
-              <div className="flex justify-between items-center mb-4 pb-4 border-b" style={{ borderBottomColor: 'var(--border)' }}>
-                <label className="flex items-center gap-2 cursor-pointer font-bold" style={{ fontSize: '0.875rem' }}>
-                  <input type="checkbox" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} /> Apply GST
-                </label>
-                <div className="flex items-center gap-2" style={{ fontSize: '0.875rem' }}>
-                  <strong>Discount (%):</strong>
-                  <input type="number" min="0" max="100" className="input" style={{ width: '80px', padding: '0.25rem' }} value={discount} onChange={e => setDiscount(Number(e.target.value) || 0)} />
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="flex justify-between mb-2">
-                <span className="text-secondary">Subtotal</span>
-                <span>₹{subtotal.toFixed(2)}</span>
-              </div>
+              {/* Pinned Cart Footer — always visible */}
+              <div className="cart-footer" style={{ padding: '0.75rem 1rem', background: '#f8fafc' }}>
 
-              {gstEnabled && Object.entries(taxDetails).map(([rate, amt]) => (
-                <div key={rate} className="flex justify-between mb-2">
-                  <span className="text-secondary">GST ({rate}%)</span>
-                  <span>₹{amt.toFixed(2)}</span>
+                <div className="flex justify-between items-center" style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                  <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                    <input type="checkbox" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} /> GST
+                  </label>
+                  <div className="flex items-center gap-2" style={{ fontSize: '0.8rem' }}>
+                    <strong>Disc %:</strong>
+                    <input type="number" min="0" max="100" className="input" style={{ width: '55px', padding: '0.2rem 0.3rem', fontSize: '0.8rem' }} value={discount} onChange={e => setDiscount(Number(e.target.value) || 0)} />
+                  </div>
                 </div>
-              ))}
 
-              {discount > 0 && (
-                <div className="flex justify-between mb-2 text-danger">
-                  <span>Discount ({discount}%)</span>
-                  <span>- ₹{discountAmount.toFixed(2)}</span>
+                <div className="flex justify-between" style={{ marginBottom: '0.25rem', fontSize: '0.85rem' }}>
+                  <span className="text-secondary">Subtotal</span>
+                  <span>₹{subtotal.toFixed(2)}</span>
                 </div>
-              )}
 
-              <div className="flex justify-between mt-4 pt-4 border-t" style={{ borderTopColor: 'var(--border)' }}>
-                <span className="font-bold" style={{ fontSize: '1.25rem' }}>Total</span>
-                <span className="font-bold text-primary" style={{ fontSize: '1.5rem' }}>₹{totalAmount.toFixed(2)}</span>
-              </div>
+                {gstEnabled && Object.entries(taxDetails).map(([rate, amt]) => (
+                  <div key={rate} className="flex justify-between" style={{ marginBottom: '0.25rem', fontSize: '0.8rem' }}>
+                    <span className="text-secondary">GST ({rate}%)</span>
+                    <span>₹{amt.toFixed(2)}</span>
+                  </div>
+                ))}
 
-              <div className="flex gap-2 mt-6">
-                <button onClick={() => checkout('Cash')} disabled={cart.length === 0} className="btn btn-primary flex-1 py-3" style={{ fontSize: '1rem' }}>
-                  <Banknote size={20} /> Cash
-                </button>
-                <button onClick={() => checkout('UPI / Card')} disabled={cart.length === 0} className="btn bg-slate-800 text-white flex-1 py-3" style={{ fontSize: '1rem', background: '#ca7403ff' }}>
-                  <CreditCard size={20} /> UPI / Card
-                </button>
+                {discount > 0 && (
+                  <div className="flex justify-between" style={{ marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--danger)' }}>
+                    <span>Discount ({discount}%)</span>
+                    <span>- ₹{discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>Total</span>
+                  <span style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--primary)' }}>₹{totalAmount.toFixed(2)}</span>
+                </div>
+
+                <div className="flex gap-2" style={{ marginTop: '0.75rem' }}>
+                  <button onClick={() => checkout('Cash')} disabled={cart.length === 0} className="btn btn-primary" style={{ flex: 1, padding: '0.6rem', fontSize: '0.9rem' }}>
+                    <Banknote size={18} /> Cash
+                  </button>
+                  <button onClick={() => checkout('UPI / Card')} disabled={cart.length === 0} className="btn" style={{ flex: 1, padding: '0.6rem', fontSize: '0.9rem', background: '#ca7403', color: 'white' }}>
+                    <CreditCard size={18} /> UPI / Card
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -251,23 +261,29 @@ export default function POSPage() {
 
       {/* Portion Selection Modal */}
       {portionItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center" style={{ zIndex: 50, background: 'rgba(0,0,0,0.5)' }}>
-          <div className="card animate-in" style={{ width: '100%', maxWidth: '350px' }}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 style={{ margin: 0 }}>Select Portion</h3>
-              <button onClick={() => setPortionItem(null)} className="btn btn-outline" style={{ border: 'none' }}><X size={20} /></button>
+        <div className="portion-overlay" onClick={() => setPortionItem(null)}>
+          <div className="portion-modal" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Select Portion</h3>
+              <button onClick={() => setPortionItem(null)} className="btn" style={{ background: 'transparent', padding: '0.25rem' }}><X size={20} /></button>
             </div>
-            <p className="mb-4 text-secondary">{portionItem.name}</p>
-            <div className="flex-col gap-2">
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.9rem' }}>{portionItem.name}</p>
+            <div className="flex flex-col gap-2">
               {portionItem.portions?.map(p => (
                 <button
                   key={p.name}
                   onClick={() => addToCart(portionItem, `${portionItem.name} (${p.name})`, p.price)}
-                  className="btn btn-outline w-full flex justify-between px-4 py-3"
-                  style={{ fontSize: '1rem' }}
+                  className="btn btn-outline w-full"
+                  style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    padding: '0.75rem 1rem', fontSize: '1rem',
+                    borderRadius: 'var(--radius)', transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                 >
                   <span>{p.name}</span>
-                  <span className="font-bold">₹{p.price.toFixed(2)}</span>
+                  <span style={{ fontWeight: 700 }}>₹{p.price}</span>
                 </button>
               ))}
             </div>
