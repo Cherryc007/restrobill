@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, syncMenuFromServer } from "@/lib/db";
+import { apiGetMenu, apiCreateMenuItem, apiUpdateMenuItem, apiDeleteMenuItem } from "@/lib/api";
 import AuthGuard from "@/app/components/AuthGuard";
 import { Plus, Edit2, Trash2, ArrowLeft, X } from "lucide-react";
 import Link from "next/link";
@@ -10,21 +11,28 @@ import Link from "next/link";
 export default function MenuManagementPage() {
   const [user, setUser] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Form State
-  const [itemId, setItemId] = useState(null);
+  const [itemId, setItemId] = useState(null); // server ID for editing
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Main Course");
   const [gst, setGst] = useState("5");
   
   const [hasPortions, setHasPortions] = useState(false);
-  const [price, setPrice] = useState(""); // If no portions
+  const [price, setPrice] = useState("");
   const [portions, setPortions] = useState([{ name: "Full", price: "" }]);
 
   useEffect(() => {
     const userStr = localStorage.getItem("restrobill_user");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userStr) setUser(JSON.parse(userStr));
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      // Fetch from API and sync to Dexie cache
+      apiGetMenu(u.restaurantId)
+        .then(items => syncMenuFromServer(items))
+        .catch(err => console.warn('API fetch failed, using local cache:', err.message));
+    }
   }, []);
 
   const menuItems = useLiveQuery(() => 
@@ -35,10 +43,10 @@ export default function MenuManagementPage() {
     e.preventDefault();
     if (!name || !category) return;
     
-    // Validation
     if (!hasPortions && !price) return alert("Please enter a price");
     if (hasPortions && portions.some(p => !p.name || !p.price)) return alert("Please fill all portion details");
 
+    setSaving(true);
     try {
       const payload = {
         name,
@@ -51,19 +59,27 @@ export default function MenuManagementPage() {
       };
 
       if (itemId) {
-        await db.menuItems.update(itemId, payload);
+        // Update on server
+        await apiUpdateMenuItem(itemId, payload);
       } else {
-        await db.menuItems.add(payload);
+        // Create on server
+        await apiCreateMenuItem(payload);
       }
+
+      // Re-sync cache from server
+      const items = await apiGetMenu(user.restaurantId);
+      await syncMenuFromServer(items);
       
       resetForm();
     } catch (err) {
       alert("Failed to save item: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const editItem = (item) => {
-    setItemId(item.id);
+    setItemId(item.serverId || item.id); // Use server ID
     setName(item.name);
     setCategory(item.category);
     setGst(item.gstPercentage.toString());
@@ -73,14 +89,28 @@ export default function MenuManagementPage() {
     setIsAdding(true);
   };
 
-  const deleteItem = async (id) => {
+  const deleteItem = async (item) => {
     if (confirm("Are you sure you want to delete this item?")) {
-      await db.menuItems.delete(id);
+      try {
+        await apiDeleteMenuItem(item.serverId || item.id);
+        // Re-sync cache from server
+        const items = await apiGetMenu(user.restaurantId);
+        await syncMenuFromServer(items);
+      } catch (err) {
+        alert("Failed to delete item: " + err.message);
+      }
     }
   };
 
   const togglePause = async (item) => {
-    await db.menuItems.update(item.id, { isPaused: !item.isPaused });
+    try {
+      await apiUpdateMenuItem(item.serverId || item.id, { isPaused: !item.isPaused });
+      // Re-sync cache from server
+      const items = await apiGetMenu(user.restaurantId);
+      await syncMenuFromServer(items);
+    } catch (err) {
+      alert("Failed to update item: " + err.message);
+    }
   };
 
   const resetForm = () => {
@@ -177,7 +207,7 @@ export default function MenuManagementPage() {
 
               <div className="flex justify-end gap-2 mt-6">
                 <button type="button" onClick={resetForm} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-primary">{itemId ? "Update Item" : "Save Item"}</button>
+                <button type="submit" disabled={saving} className="btn btn-primary">{saving ? 'Saving...' : (itemId ? "Update Item" : "Save Item")}</button>
               </div>
             </form>
           </div>
@@ -220,7 +250,7 @@ export default function MenuManagementPage() {
                     <button onClick={() => editItem(item)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', marginRight: '0.5rem' }}>
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => deleteItem(item.id)} className="btn outline" style={{ padding: '0.25rem 0.5rem', color: 'var(--danger)', border: '1px solid var(--danger)' }}>
+                    <button onClick={() => deleteItem(item)} className="btn outline" style={{ padding: '0.25rem 0.5rem', color: 'var(--danger)', border: '1px solid var(--danger)' }}>
                       <Trash2 size={14} />
                     </button>
                   </td>

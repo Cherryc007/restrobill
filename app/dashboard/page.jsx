@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, syncReceiptsFromServer, getUnsyncedReceipts } from "@/lib/db";
+import { apiGetReceipts, apiSyncReceipts } from "@/lib/api";
 import AuthGuard from "@/app/components/AuthGuard";
 import { TrendingUp, FileText, WifiOff, AlertCircle, BarChart3 } from "lucide-react";
 import Link from "next/link";
@@ -13,8 +14,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const userStr = localStorage.getItem("restrobill_user");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userStr) setUser(JSON.parse(userStr));
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      // Fetch receipts from API and sync to Dexie cache
+      apiGetReceipts(u.restaurantId)
+        .then(receipts => syncReceiptsFromServer(receipts))
+        .catch(err => console.warn('API fetch failed, using local cache:', err.message));
+    }
 
     setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
@@ -33,27 +40,30 @@ export default function DashboardPage() {
 
   const handleSyncBills = async () => {
     if (!isOnline) return alert("Cannot sync while offline.");
-    const unsynced = receipts.filter(r => !r.synced);
-    if (unsynced.length === 0) return alert("All bills are already synced!");
     
     try {
+      // Get locally-cached unsynced receipts
+      const unsynced = await getUnsyncedReceipts();
+      if (unsynced.length === 0) return alert("All bills are already synced!");
+
+      // Push to server
+      const result = await apiSyncReceipts(unsynced);
+      
+      // Mark local copies as synced
       await Promise.all(unsynced.map(r => db.receipts.update(r.id, { synced: 1 })));
-      alert(`Successfully synced ${unsynced.length} bills to cloud.`);
+      alert(`Successfully synced ${result.inserted} bills to cloud.`);
     } catch (e) {
-      alert("Sync failed.");
+      alert("Sync failed: " + e.message);
     }
   };
 
-  const todayRevenue = receipts
-    .filter(r => new Date(r.date).toDateString() === new Date().toDateString())
+  const todayReceipts = receipts.filter(r => new Date(r.date).toDateString() === new Date().toDateString());
+  const todayRevenue = todayReceipts.reduce((sum, r) => sum + r.totalAmount, 0);
+  const todayCash = todayReceipts
+    .filter(r => r.paymentMethod === 'Cash')
     .reduce((sum, r) => sum + r.totalAmount, 0);
-
-  const todayCash = receipts
-    .filter(r => new Date(r.date).toDateString() === new Date().toDateString() && r.paymentMethod === 'Cash')
-    .reduce((sum, r) => sum + r.totalAmount, 0);
-
-  const todayUPI = receipts
-    .filter(r => new Date(r.date).toDateString() === new Date().toDateString() && r.paymentMethod !== 'Cash')
+  const todayUPI = todayReceipts
+    .filter(r => r.paymentMethod !== 'Cash')
     .reduce((sum, r) => sum + r.totalAmount, 0);
 
   const unsyncedCount = receipts.filter(r => !r.synced).length;
@@ -186,7 +196,7 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {receipts.slice(0, 5).map((r) => (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <tr key={r.id || r.receiptNo} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '1rem' }}>{r.receiptNo}</td>
                       <td style={{ padding: '1rem' }}>{new Date(r.date).toLocaleString()}</td>
                       <td style={{ padding: '1rem' }}>
@@ -203,7 +213,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td style={{ padding: '1rem' }}>
-                        <Link href={`/invoice/${r.id}`} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>View</Link>
+                        <Link href={`/invoice/${r.serverId || r.id}`} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>View</Link>
                       </td>
                     </tr>
                   ))}

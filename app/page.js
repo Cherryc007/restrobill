@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, initializeDemoData } from "@/lib/db";
+import { apiLogin, apiSeed } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,8 +11,10 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Prep offline DB on load
-    initializeDemoData().then(() => setLoading(false));
+    // Seed the database on first visit (idempotent — skips if already done)
+    apiSeed()
+      .then(() => setLoading(false))
+      .catch(() => setLoading(false)); // If API unreachable, still show login
   }, []);
 
   const handleLogin = async (e) => {
@@ -23,23 +25,28 @@ export default function LoginPage() {
     }
 
     try {
-      const user = await db.users.where("username").equalsIgnoreCase(username).first();
-      
-      if (user) {
-        // Store session simply in localStorage for this MVP
-        localStorage.setItem("restrobill_user", JSON.stringify(user));
-        
-        // Redirect based on role
-        if (user.role === "Admin") {
-          router.push("/dashboard");
-        } else {
-          router.push("/pos");
-        }
+      const data = await apiLogin(username);
+
+      // Store session in localStorage (keep existing pattern)
+      const userSession = {
+        ...data.user,
+        restaurantId: data.user.restaurantId,
+      };
+      localStorage.setItem("restrobill_user", JSON.stringify(userSession));
+
+      // Cache restaurant info
+      if (data.restaurant) {
+        localStorage.setItem("restrobill_restaurant", JSON.stringify(data.restaurant));
+      }
+
+      // Redirect based on role
+      if (data.user.role === "Admin") {
+        router.push("/dashboard");
       } else {
-        setError("User not found. Try 'admin' or 'staff'.");
+        router.push("/pos");
       }
     } catch (err) {
-      setError("Login failed: " + err.message);
+      setError(err.message || "Login failed");
     }
   };
 

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, syncMenuFromServer } from "@/lib/db";
+import { apiGetMenu, apiCreateReceipt } from "@/lib/api";
 import { Plus, Minus, X, CreditCard, Banknote } from "lucide-react";
 import AuthGuard from "@/app/components/AuthGuard";
 import { useRouter } from "next/navigation";
@@ -20,14 +21,21 @@ export default function POSPage() {
   // Portion Modal State
   const [portionItem, setPortionItem] = useState(null);
 
+  // Use Dexie as reactive cache — data is populated from API on mount
   const menuItems = useLiveQuery(() =>
     user ? db.menuItems.where("restaurantId").equals(user.restaurantId).toArray() : []
     , [user]) || [];
 
   useEffect(() => {
     const userStr = localStorage.getItem("restrobill_user");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userStr) setUser(JSON.parse(userStr));
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      // Fetch from API and sync to Dexie cache
+      apiGetMenu(u.restaurantId)
+        .then(items => syncMenuFromServer(items))
+        .catch(err => console.warn('API fetch failed, using local cache:', err.message));
+    }
   }, []);
 
   const activeMenuItems = menuItems.filter(i => !i.isPaused);
@@ -36,7 +44,7 @@ export default function POSPage() {
 
   const handleItemClick = (item) => {
     if (item.hasPortions) {
-      setPortionItem(item); // Open Portion Selector Modal
+      setPortionItem(item);
     } else {
       addToCart(item, item.name, item.price);
     }
@@ -44,7 +52,6 @@ export default function POSPage() {
 
   const addToCart = (item, displayName, displayPrice) => {
     setCart(prev => {
-      // Use displayName as unique cart key so Half/Full are treated separately
       const existing = prev.find(i => i.cartId === displayName);
       if (existing) {
         return prev.map(i => i.cartId === displayName ? { ...i, qty: i.qty + 1 } : i);
@@ -57,7 +64,7 @@ export default function POSPage() {
         qty: 1
       }];
     });
-    setPortionItem(null); // Close modal if open
+    setPortionItem(null);
   };
 
   const updateQty = (cartId, delta) => {
@@ -99,12 +106,11 @@ export default function POSPage() {
   const checkout = async (method) => {
     if (cart.length === 0) return;
 
-    // eslint-disable-next-line react-hooks/purity
-    const receiptNo = `INV-${Date.now().toString().slice(-6)}`;
+    const receiptNo = `INV-${Date.now().toString().slice(-7)}`;
     const receipt = {
       receiptNo,
       restaurantId: user.restaurantId,
-      items: cart,
+      items: cart.map(({ cartId, serverId, id, ...rest }) => rest), // Clean cart items
       subtotal,
       totalTax,
       discount: discountAmount,
@@ -113,17 +119,29 @@ export default function POSPage() {
       totalAmount,
       paymentMethod: method,
       date: new Date().toISOString(),
-      synced: 0 // offline first
+      synced: 0,
     };
 
     try {
-      const id = await db.receipts.add(receipt);
+      // Try API first (online)
+      const serverReceipt = await apiCreateReceipt(receipt);
+      // Also cache locally
+      await db.receipts.add({ ...serverReceipt, synced: 1 });
       setCart([]);
       setDiscount(0);
-      router.push(`/invoice/${id}`);
-    } catch (e) {
-      alert("Error saving bill");
-      console.error(e);
+      router.push(`/invoice/${serverReceipt.id}`);
+    } catch (apiErr) {
+      // Offline fallback — save locally and sync later
+      console.warn('API unreachable, saving locally:', apiErr.message);
+      try {
+        const localId = await db.receipts.add(receipt);
+        setCart([]);
+        setDiscount(0);
+        router.push(`/invoice/${localId}?local=1`);
+      } catch (e) {
+        alert("Error saving bill");
+        console.error(e);
+      }
     }
   };
 
@@ -173,7 +191,6 @@ export default function POSPage() {
           {/* Cart Section */}
           <div className="card" style={{ padding: 0, overflow: 'hidden', minHeight: 0 }}>
             <div className="cart-container">
-              {/* Cart Header */}
               <div className="cart-header" style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex justify-between items-center">
                   <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Current Bill</h2>
@@ -181,7 +198,6 @@ export default function POSPage() {
                 </div>
               </div>
 
-              {/* Scrollable Cart Items */}
               <div className="cart-items">
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center justify-center text-secondary" style={{ padding: '2rem 0' }}>
@@ -207,9 +223,7 @@ export default function POSPage() {
                 )}
               </div>
 
-              {/* Pinned Cart Footer — always visible */}
               <div className="cart-footer" style={{ padding: '0.75rem 1rem', background: '#f8fafc' }}>
-
                 <div className="flex justify-between items-center" style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
                   <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
                     <input type="checkbox" checked={gstEnabled} onChange={e => setGstEnabled(e.target.checked)} /> GST
