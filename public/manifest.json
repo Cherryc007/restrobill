@@ -1,11 +1,11 @@
 {
-  "name": "RestroBill",
-  "short_name": "RestroBill",
-  "description": "Offline-first restaurant billing MVP",
+  "name": "Southall Kitchens",
+  "short_name": "Southall Kitchens",
+  "description": "Advanced restaurant billing & POS system",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#f97316",
   "icons": [
     {
       "src": "/icon-192.png",

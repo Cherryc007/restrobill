@@ -109,7 +109,7 @@ export default function OrderHistoryPage() {
                   </td>
                   <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--primary)' }}>₹{r.totalAmount.toFixed(2)}</td>
                   <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    <Link href={`/invoice/${r.id}`} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
+                    <Link href={`/invoice/${r.serverId || r.id}${r.synced ? '' : '?local=1'}`} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
                       View / Reprint
                     </Link>
                   </td>

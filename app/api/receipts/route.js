@@ -57,10 +57,11 @@ export async function POST(request) {
 
     const result = await db.collection('receipts').insertOne(doc);
 
+    console.log('Receipt created in MongoDB:', result.insertedId.toString());
+
     return NextResponse.json({
       ...doc,
-      id: result.insertedId.toString(),
-      _id: undefined,
+      _id: result.insertedId.toString(),
     }, { status: 201 });
   } catch (error) {
     console.error('POST /api/receipts error:', error);

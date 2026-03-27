@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, syncMenuFromServer } from "@/lib/db";
+import { db, syncMenuFromServer, saveReceiptOnline } from "@/lib/db";
 import { apiGetMenu, apiCreateReceipt } from "@/lib/api";
 import { Plus, Minus, X, CreditCard, Banknote } from "lucide-react";
 import AuthGuard from "@/app/components/AuthGuard";
@@ -123,25 +123,20 @@ export default function POSPage() {
     };
 
     try {
-      // Try API first (online)
-      const serverReceipt = await apiCreateReceipt(receipt);
-      // Also cache locally
-      await db.receipts.add({ ...serverReceipt, synced: 1 });
+      console.log('Starting checkout for receipt:', receiptNo);
+      // Use the helper from lib/db.js to handle online/offline logic
+      const result = await saveReceiptOnline(apiCreateReceipt, receipt);
+      
       setCart([]);
       setDiscount(0);
-      router.push(`/invoice/${serverReceipt.id}`);
-    } catch (apiErr) {
-      // Offline fallback — save locally and sync later
-      console.warn('API unreachable, saving locally:', apiErr.message);
-      try {
-        const localId = await db.receipts.add(receipt);
-        setCart([]);
-        setDiscount(0);
-        router.push(`/invoice/${localId}?local=1`);
-      } catch (e) {
-        alert("Error saving bill");
-        console.error(e);
-      }
+      
+      // Navigate to invoice using the server _id if available, else local id
+      const invoiceId = result._id || result.id;
+      console.log('Navigating to invoice:', invoiceId);
+      router.push(`/invoice/${invoiceId}${result._id ? '' : '?local=1'}`);
+    } catch (err) {
+      alert("Error saving bill: " + err.message);
+      console.error(err);
     }
   };
 

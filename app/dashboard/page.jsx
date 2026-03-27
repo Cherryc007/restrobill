@@ -213,7 +213,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td style={{ padding: '1rem' }}>
-                        <Link href={`/invoice/${r.serverId || r.id}`} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>View</Link>
+                        <Link href={`/invoice/${r.serverId || r.id}${r.synced ? '' : '?local=1'}`} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>View</Link>
                       </td>
                     </tr>
                   ))}

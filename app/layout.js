@@ -3,8 +3,8 @@ import Link from 'next/link';
 import HeaderNav from './components/HeaderNav';
 
 export const metadata = {
-  title: "RestroBill",
-  description: "Offline-first restaurant billing MVP",
+  title: "Southall Kitchens",
+  description: "Advanced restaurant billing & POS system",
   manifest: "/manifest.json",
 };
 
@@ -13,7 +13,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" />
-        <meta name="theme-color" content="#3b82f6" />
+        <meta name="theme-color" content="#f97316" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
       </head>
       <body>

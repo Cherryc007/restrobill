@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/db";
+import { apiGetReceipt } from "@/lib/api";
 import AuthGuard from "@/app/components/AuthGuard";
 import { Printer, Share2, ArrowLeft } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -17,12 +18,40 @@ export default function InvoicePage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const id = parseInt(params.id);
-        const bill = await db.receipts.get(id);
+        const id = params.id;
+        const isLocal = new URLSearchParams(window.location.search).get('local') === '1';
+        
+        console.log('Loading invoice:', id, 'isLocal:', isLocal);
+
+        let bill = null;
+        let rest = null;
+
+        if (isLocal) {
+          // Load from local Dexie using auto-increment ID
+          bill = await db.receipts.get(parseInt(id));
+        } else {
+          // Try local cache first by serverId string
+          bill = await db.receipts.where('serverId').equals(id).first();
+          
+          // If not in cache, fetch from API
+          if (!bill) {
+            console.log('Bill not in local cache, fetching from API...');
+            const data = await apiGetReceipt(id);
+            bill = data.receipt;
+            rest = data.restaurant;
+          }
+        }
+
         if (bill) {
           setReceipt(bill);
-          const rest = await db.restaurants.get(bill.restaurantId);
+          // If we don't have restaurant from API, load from local cache
+          if (!rest) {
+            rest = await db.restaurants.get(bill.restaurantId) || 
+                   await db.restaurants.where('id').equals(bill.restaurantId).first();
+          }
           setRestaurant(rest);
+        } else {
+          console.warn('Receipt not found in local or remote storage');
         }
       } catch (e) {
         console.error("Error loading invoice:", e);

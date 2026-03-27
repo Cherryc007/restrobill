@@ -31,15 +31,11 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       receipt: {
         ...receipt,
-        id: receipt._id.toString(),
-        _id: undefined,
+        _id: receipt._id.toString(),
       },
       restaurant: restaurant ? {
-        id: restaurant._id.toString(),
-        name: restaurant.name,
-        gst: restaurant.gst,
-        address: restaurant.address,
-        _id: undefined,
+        ...restaurant,
+        _id: restaurant._id.toString(),
       } : null,
     });
   } catch (error) {

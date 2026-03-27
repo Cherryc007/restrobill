@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, syncReceiptsFromServer } from "@/lib/db";
+import { apiGetReceipts } from "@/lib/api";
 import AuthGuard from "@/app/components/AuthGuard";
 import { ArrowLeft, PieChart as PieChartIcon, BarChart as BarChartIcon } from "lucide-react";
 import Link from "next/link";
@@ -17,8 +18,14 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const userStr = localStorage.getItem("restrobill_user");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (userStr) setUser(JSON.parse(userStr));
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setUser(u);
+      // Fetch receipts from API and sync to Dexie cache
+      apiGetReceipts(u.restaurantId)
+        .then(receipts => syncReceiptsFromServer(receipts))
+        .catch(err => console.warn('API fetch failed, using local cache:', err.message));
+    }
   }, []);
 
   const receipts = useLiveQuery(() => 
